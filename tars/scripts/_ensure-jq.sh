@@ -13,6 +13,9 @@ JQ_DIR="${CLAUDE_PLUGIN_DATA:-$SKILL_DIR}/bin"
 JQ="$JQ_DIR/jq"
 [ -x "$JQ" ] && exit 0
 
+# shellcheck disable=SC1091
+. "$(dirname "$0")/_net.sh"
+
 BASE_URL="${TARS_INSTALL_BASE:-https://tars.live/skill}"
 # Source layout: paths in the repo are under skills/tars/; lazy fetch needs
 # the same prefix. install.sh flattens them on disk for bare-skill installs.
@@ -44,7 +47,8 @@ fi
 
 # 3. Fetch checksum manifest, parse expected sha for our platform.
 checksums="$(curl -fsSL --retry 3 "$BASE_URL/$SRC_PREFIX/jq-checksums.json")" \
-  || die "could not fetch $BASE_URL/$SRC_PREFIX/jq-checksums.json"
+  || { rc=$?; tars_curl_rc_explain $rc; die "could not fetch $BASE_URL/$SRC_PREFIX/jq-checksums.json"; }
+tars_check_body_for_egress "$checksums"
 expected="$(printf '%s' "$checksums" | python3 -c \
   "import json,sys;print(json.loads(sys.stdin.read())['binaries']['$platform']['sha256'])")" \
   || die "platform $platform missing from manifest"
@@ -54,7 +58,7 @@ mkdir -p "$JQ_DIR"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 curl -fsSL --retry 3 "$BASE_URL/$SRC_PREFIX/bin/jq-$platform" -o "$tmp" \
-  || die "could not fetch $BASE_URL/$SRC_PREFIX/bin/jq-$platform"
+  || { rc=$?; tars_curl_rc_explain $rc; die "could not fetch $BASE_URL/$SRC_PREFIX/bin/jq-$platform"; }
 actual="$(sha_of "$tmp")"
 [ "$actual" = "$expected" ] || die "jq checksum mismatch (expected $expected, got $actual)"
 chmod +x "$tmp"

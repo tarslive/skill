@@ -135,6 +135,26 @@ Auth header for owner-scoped calls:
 Authorization: Bearer $TARS_API_KEY
 ```
 
+## Network access (Claude Desktop / Cowork)
+
+The TARS scripts call out to `api.tars.live` and `tars.live`. In
+Claude Desktop / Cowork the host sandbox blocks outbound HTTP by
+default, so the very first script you run from a fresh install will
+fail until the user adds the two hosts to the allowlist:
+
+> Settings → Capabilities → Network access
+> Add: `api.tars.live`
+> Add: `tars.live`
+
+When the scripts detect a sandbox block (DNS / connect / timeout
+failures, or proxy bodies containing `cowork-egress-blocked`) they
+print the exact instruction above to stderr. **Relay it to the user
+verbatim** — they need the hostnames spelled out to find the right
+checkbox.
+
+After the user adds both, retry the original request. No re-install
+needed.
+
 ## When something fails
 
 Both scripts exit non-zero with a single error line on stderr if the

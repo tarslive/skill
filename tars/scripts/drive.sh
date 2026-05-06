@@ -5,6 +5,8 @@ set -euo pipefail
 
 API="${TARS_API_BASE:-https://api.tars.live}"
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/_net.sh"
 "$(dirname "$0")/_ensure-jq.sh" || exit 1
 JQ="${CLAUDE_PLUGIN_DATA:-$SKILL_DIR}/bin/jq"
 [ -x "$JQ" ] || JQ="$SKILL_DIR/bin/jq"
@@ -19,6 +21,13 @@ if [ -z "${TARS_API_KEY:-}" ]; then
   echo "drive.sh: not signed in. Run 'auth.sh login <email>' or export TARS_API_KEY." >&2
   exit 1
 fi
+
+# Preflight: surface sandbox network blocks before doing real work, so the
+# user gets the egress-allowlist instruction instead of a generic curl
+# failure mid-operation.
+preflight=$(curl -fsS --connect-timeout 5 --max-time 10 "$API/v1/health" 2>/dev/null) \
+  || { rc=$?; tars_curl_rc_explain $rc; }
+tars_check_body_for_egress "${preflight:-}"
 
 AUTH="Authorization: Bearer $TARS_API_KEY"
 

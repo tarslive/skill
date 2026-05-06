@@ -5,6 +5,8 @@ set -euo pipefail
 
 API="${TARS_API_BASE:-https://api.tars.live}"
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/_net.sh"
 "$(dirname "$0")/_ensure-jq.sh" || exit 1
 JQ="${CLAUDE_PLUGIN_DATA:-$SKILL_DIR}/bin/jq"
 [ -x "$JQ" ] || JQ="$SKILL_DIR/bin/jq"
@@ -16,7 +18,8 @@ die() { echo "publish.sh: $*" >&2; exit 1; }
 
 # 1. Create draft (no auth).
 resp=$(curl -fsSL -X POST "$API/v1/sites" -H 'content-type: application/json' -d '{}') \
-  || die "could not create site (network or API down?)"
+  || { rc=$?; tars_curl_rc_explain $rc; die "could not create site (network or API down?)"; }
+tars_check_body_for_egress "$resp"
 site_id=$(echo "$resp" | "$JQ" -er '.id') || die "malformed create response: $resp"
 edit_token=$(echo "$resp" | "$JQ" -er '.edit_token')
 url=$(echo "$resp" | "$JQ" -er '.url')
@@ -36,12 +39,12 @@ done
 curl -fsS -X POST "$API/v1/sites/$site_id/files" \
   -H "Authorization: Bearer $edit_token" \
   "${args[@]}" > /dev/null \
-  || die "file upload failed"
+  || { rc=$?; tars_curl_rc_explain $rc; die "file upload failed"; }
 
 # 3. Publish.
 curl -fsS -X POST "$API/v1/sites/$site_id/publish" \
   -H "Authorization: Bearer $edit_token" > /dev/null \
-  || die "publish failed"
+  || { rc=$?; tars_curl_rc_explain $rc; die "publish failed"; }
 
 # 4. Surface the URL on the last line of stdout (machines parse this).
 echo "Published $(echo "${files[@]}" | wc -w | tr -d ' ') file(s) to:"

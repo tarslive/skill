@@ -12,6 +12,8 @@ set -euo pipefail
 
 API="${TARS_API_BASE:-https://api.tars.live}"
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1091
+. "$(dirname "$0")/_net.sh"
 "$(dirname "$0")/_ensure-jq.sh" || exit 1
 JQ="${CLAUDE_PLUGIN_DATA:-$SKILL_DIR}/bin/jq"
 [ -x "$JQ" ] || JQ="$SKILL_DIR/bin/jq"
@@ -41,7 +43,8 @@ login() {
   body=$(printf '{"email":%s,"label":"Claude assistant"}' "$(printf '%s' "$email" | "$JQ" -Rs .)")
   resp=$(curl -fsS -X POST "$API/v1/auth/skill-link" \
     -H 'content-type: application/json' \
-    -d "$body") || die "could not start sign-in (network or API down?)"
+    -d "$body") || { rc=$?; tars_curl_rc_explain $rc; die "could not start sign-in (network or API down?)"; }
+  tars_check_body_for_egress "$resp"
 
   link_token=$(echo "$resp" | "$JQ" -er '.link_token') || die "malformed response: $resp"
   poll_url=$(echo "$resp"  | "$JQ" -er '.poll_url')

@@ -1,6 +1,6 @@
 ---
 name: tars
-description: Publish folders as live websites at <handle>.tars.live and store/share files in a private cloud drive — agent-first, three HTTP calls per publish, no UI signup needed.
+description: Publish folders as live websites on tars.live and store/share files in a private cloud drive — agent-first, three HTTP calls per publish, no UI signup needed.
 ---
 
 # TARS

@@ -50,9 +50,9 @@ curl -fsS -X POST "$API/v1/sites/$site_id/publish" \
 echo "Published $(echo "${files[@]}" | wc -w | tr -d ' ') file(s) to:"
 echo "$url"
 echo
-echo "Site expires in 24 h unless claimed. To claim, sign in at"
-echo "https://api.tars.live/sign-in.html and run:"
-echo "  curl -X POST $API/v1/sites/$site_id/claim \\"
-echo "    -H 'Authorization: Bearer \$TARS_API_KEY' \\"
-echo "    -H 'content-type: application/json' \\"
-echo "    -d '{\"edit_token\":\"$edit_token\",\"handle\":\"<your-handle>\"}'"
+echo "site_id=$site_id"
+echo "edit_token=$edit_token"
+echo
+echo "Site expires in 24 h unless claimed. To claim under a permanent handle,"
+echo "ask the agent: \"claim this site as <my-handle>\" — it will run the"
+echo "in-skill auth + sites.sh claim flow."

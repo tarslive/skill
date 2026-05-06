@@ -22,6 +22,7 @@ Don't use it for:
 | Script | Purpose |
 |---|---|
 | `${CLAUDE_SKILL_DIR}/scripts/publish.sh` | Publish a local folder as a TARS site. Anonymous (no auth needed). |
+| `${CLAUDE_SKILL_DIR}/scripts/sites.sh`   | Site-level ops: `claim` (turns an anonymous site into a permanent one). Needs sign-in. |
 | `${CLAUDE_SKILL_DIR}/scripts/drive.sh`   | Drive operations: `put`, `get`, `ls`, `rm`, `share`. Needs sign-in. |
 | `${CLAUDE_SKILL_DIR}/scripts/auth.sh`    | Sign in / out without leaving the chat — magic link to email. |
 
@@ -36,21 +37,33 @@ absolute path; both work.
 and produces a 24-hour URL. Reach for `auth.sh` only when the user asks for
 drive operations or wants to claim a previously-anonymous site.
 
-### In-client sign-in (preferred)
+### In-client sign-in (preferred — agent-driven)
 
-The user does NOT need to leave the chat or paste a key. From inside the
-session:
+The user does NOT need to leave the chat or paste a key. The flow has
+three atomic steps, each a single sub-second HTTP call so the bash tool
+never sits in a long-running loop:
 
 ```sh
-${CLAUDE_SKILL_DIR}/scripts/auth.sh login user@example.com
+# 1. Send the email. Prints `link_token=…` and `poll_url=…`. Returns immediately.
+${CLAUDE_SKILL_DIR}/scripts/auth.sh request user@example.com
+
+# 2. Tell the user: "I just emailed you — click the sign-in link."
+
+# 3. Poll until ready. Each call is one HTTP request — loop it from the
+#    agent (NOT inside the script) every 3 s, ~30 tries, with progress
+#    messages between calls. When poll prints "status=ready", the
+#    credentials file is written and the credential auto-flows into
+#    drive.sh / sites.sh.
+${CLAUDE_SKILL_DIR}/scripts/auth.sh poll <link_token>
 ```
 
-This sends a one-click email link, then polls. The user clicks the link in
-their inbox; the script writes the api_key to disk and exits. After that,
-`drive.sh` and `publish.sh` use the credential automatically — no env var to
-export.
+`auth.sh login <email>` exists too as a convenience wrapper that does
+request + a 5-minute internal poll loop. **Don't use `login` from agentic
+hosts** — Claude Desktop / Cowork's bash tool may kill long-running
+processes, and the user gets no progress signal during the wait. Use
+`request` + `poll` (looped from the agent) instead.
 
-To check status or sign out:
+Check status or sign out:
 
 ```sh
 ${CLAUDE_SKILL_DIR}/scripts/auth.sh whoami
@@ -79,6 +92,26 @@ ${CLAUDE_SKILL_DIR}/scripts/publish.sh ./my-dashboard
 
 Output (last line) is the live URL. The site lives 24 hours unless
 the user claims it.
+
+### Claim an anonymous site under a permanent handle
+
+`publish.sh` produces an anonymous site with a 24-hour TTL. To make
+it permanent, the user must claim it under a handle they own.
+
+The flow when a user says "claim this site as `<handle>`":
+
+1. `auth.sh whoami` — if it prints `not signed in`, run the in-client
+   sign-in (see Auth setup above). Otherwise skip to step 2.
+2. `sites.sh claim <site_id> <edit_token> <handle>` — site_id and
+   edit_token were printed by the earlier `publish.sh` run; capture
+   them at publish time.
+
+```sh
+${CLAUDE_SKILL_DIR}/scripts/sites.sh claim s_abc123 et_xyz789 my-handle
+```
+
+Prints `https://my-handle.tars.live`. **Never** hand-build a `curl`
+recipe for the claim — `sites.sh claim` exists for exactly this.
 
 ### Drive — upload a file
 

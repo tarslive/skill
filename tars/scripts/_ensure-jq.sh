@@ -7,10 +7,16 @@
 set -euo pipefail
 
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-JQ="$SKILL_DIR/bin/jq"
+# Prefer the plugin's writable data dir when running as a plugin; the cache
+# location at $SKILL_DIR/bin may be on a read-only path.
+JQ_DIR="${CLAUDE_PLUGIN_DATA:-$SKILL_DIR}/bin"
+JQ="$JQ_DIR/jq"
 [ -x "$JQ" ] && exit 0
 
 BASE_URL="${TARS_INSTALL_BASE:-https://tars.live/skill}"
+# Source layout: paths in the repo are under skills/tars/; lazy fetch needs
+# the same prefix. install.sh flattens them on disk for bare-skill installs.
+SRC_PREFIX="${TARS_SRC_PREFIX:-skills/tars}"
 
 die() { echo "ensure-jq: $*" >&2; exit 1; }
 
@@ -37,18 +43,18 @@ else
 fi
 
 # 3. Fetch checksum manifest, parse expected sha for our platform.
-checksums="$(curl -fsSL --retry 3 "$BASE_URL/jq-checksums.json")" \
-  || die "could not fetch $BASE_URL/jq-checksums.json"
+checksums="$(curl -fsSL --retry 3 "$BASE_URL/$SRC_PREFIX/jq-checksums.json")" \
+  || die "could not fetch $BASE_URL/$SRC_PREFIX/jq-checksums.json"
 expected="$(printf '%s' "$checksums" | python3 -c \
   "import json,sys;print(json.loads(sys.stdin.read())['binaries']['$platform']['sha256'])")" \
   || die "platform $platform missing from manifest"
 
 # 4. Fetch binary, verify, install atomically.
-mkdir -p "$SKILL_DIR/bin"
+mkdir -p "$JQ_DIR"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
-curl -fsSL --retry 3 "$BASE_URL/bin/jq-$platform" -o "$tmp" \
-  || die "could not fetch $BASE_URL/bin/jq-$platform"
+curl -fsSL --retry 3 "$BASE_URL/$SRC_PREFIX/bin/jq-$platform" -o "$tmp" \
+  || die "could not fetch $BASE_URL/$SRC_PREFIX/bin/jq-$platform"
 actual="$(sha_of "$tmp")"
 [ "$actual" = "$expected" ] || die "jq checksum mismatch (expected $expected, got $actual)"
 chmod +x "$tmp"

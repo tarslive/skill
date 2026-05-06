@@ -4,8 +4,10 @@
 set -euo pipefail
 
 API="${TARS_API_BASE:-https://api.tars.live}"
+SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 "$(dirname "$0")/_ensure-jq.sh" || exit 1
-JQ="$(dirname "$0")/../bin/jq"
+JQ="${CLAUDE_PLUGIN_DATA:-$SKILL_DIR}/bin/jq"
+[ -x "$JQ" ] || JQ="$SKILL_DIR/bin/jq"
 
 dir="${1:-}"
 [ -d "$dir" ] || { echo "usage: publish.sh <directory>" >&2; exit 2; }

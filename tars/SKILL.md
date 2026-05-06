@@ -19,38 +19,62 @@ Don't use it for:
 
 ## What's installed here
 
-| Path | Purpose |
+| Script | Purpose |
 |---|---|
-| `~/.claude/skills/tars/scripts/publish.sh` | Publish a local folder as a TARS site. Anonymous (no auth needed). |
-| `~/.claude/skills/tars/scripts/drive.sh`   | Drive operations: `put`, `get`, `ls`, `rm`, `share`. Requires `TARS_API_KEY`. |
-| `~/.claude/skills/tars/bin/jq`             | jq 1.8.1 (used by both scripts to parse JSON responses). |
+| `${CLAUDE_SKILL_DIR}/scripts/publish.sh` | Publish a local folder as a TARS site. Anonymous (no auth needed). |
+| `${CLAUDE_SKILL_DIR}/scripts/drive.sh`   | Drive operations: `put`, `get`, `ls`, `rm`, `share`. Needs sign-in. |
+| `${CLAUDE_SKILL_DIR}/scripts/auth.sh`    | Sign in / out without leaving the chat — magic link to email. |
+
+`${CLAUDE_SKILL_DIR}` is the path Claude resolves to this skill, regardless of
+whether it's installed as a personal skill (`~/.claude/skills/tars/`) or as a
+plugin in Claude Desktop / Cowork. Use it verbatim or substitute the
+absolute path; both work.
 
 ## Auth setup
 
-For drive operations and for re-publishing already-claimed sites, the user
-needs a TARS API key. Steps to bootstrap:
+`publish.sh` does NOT require auth — anonymous publish works without any key
+and produces a 24-hour URL. Reach for `auth.sh` only when the user asks for
+drive operations or wants to claim a previously-anonymous site.
 
-1. Sign in at <https://api.tars.live/sign-in.html> (magic link sent to email).
-2. On <https://api.tars.live/dashboard>, click "Create new key" and copy it.
-3. Tell the user to set it for their shell:
+### In-client sign-in (preferred)
 
-   ```sh
-   export TARS_API_KEY='tars_...'
-   ```
+The user does NOT need to leave the chat or paste a key. From inside the
+session:
 
-   Persist it in `~/.zshrc` / `~/.bashrc` for future sessions.
+```sh
+${CLAUDE_SKILL_DIR}/scripts/auth.sh login user@example.com
+```
 
-`publish.sh` does NOT require `TARS_API_KEY` — anonymous publish works
-without any auth and produces a 24-hour URL. After it prints the URL,
-suggest the user claim the site from their dashboard if they want to
-keep it.
+This sends a one-click email link, then polls. The user clicks the link in
+their inbox; the script writes the api_key to disk and exits. After that,
+`drive.sh` and `publish.sh` use the credential automatically — no env var to
+export.
+
+To check status or sign out:
+
+```sh
+${CLAUDE_SKILL_DIR}/scripts/auth.sh whoami
+${CLAUDE_SKILL_DIR}/scripts/auth.sh logout
+```
+
+### Manual key (legacy)
+
+If the user already has a key from <https://api.tars.live/dashboard>, they
+can export it instead:
+
+```sh
+export TARS_API_KEY='tars_...'
+```
+
+The scripts prefer the env var when set, falling back to the file written by
+`auth.sh`.
 
 ## Common commands
 
 ### Publish a folder as a website
 
 ```sh
-~/.claude/skills/tars/scripts/publish.sh ./my-dashboard
+${CLAUDE_SKILL_DIR}/scripts/publish.sh ./my-dashboard
 ```
 
 Output (last line) is the live URL. The site lives 24 hours unless
@@ -59,20 +83,20 @@ the user claims it.
 ### Drive — upload a file
 
 ```sh
-~/.claude/skills/tars/scripts/drive.sh put ./report.pdf reports/q2.pdf
+${CLAUDE_SKILL_DIR}/scripts/drive.sh put ./report.pdf reports/q2.pdf
 ```
 
 ### Drive — list files (optionally under a prefix)
 
 ```sh
-~/.claude/skills/tars/scripts/drive.sh ls
-~/.claude/skills/tars/scripts/drive.sh ls reports/
+${CLAUDE_SKILL_DIR}/scripts/drive.sh ls
+${CLAUDE_SKILL_DIR}/scripts/drive.sh ls reports/
 ```
 
 ### Drive — download a file
 
 ```sh
-~/.claude/skills/tars/scripts/drive.sh get reports/q2.pdf [./out.pdf]
+${CLAUDE_SKILL_DIR}/scripts/drive.sh get reports/q2.pdf [./out.pdf]
 ```
 
 If no output path is given, the file is written to the current dir
@@ -81,13 +105,13 @@ under its basename.
 ### Drive — delete a file
 
 ```sh
-~/.claude/skills/tars/scripts/drive.sh rm reports/q2.pdf
+${CLAUDE_SKILL_DIR}/scripts/drive.sh rm reports/q2.pdf
 ```
 
 ### Drive — issue a share URL with TTL
 
 ```sh
-~/.claude/skills/tars/scripts/drive.sh share reports/q2.pdf 3600
+${CLAUDE_SKILL_DIR}/scripts/drive.sh share reports/q2.pdf 3600
 ```
 
 Prints a public URL valid for the requested seconds (60 ≤ ttl ≤ 30 days).
@@ -121,7 +145,7 @@ Common cases:
 
 | code | What to do |
 |---|---|
-| `unauthorized` | API key not set or wrong. Re-export `TARS_API_KEY` or have the user issue a fresh one. |
+| `unauthorized` | Not signed in. Run `auth.sh login <email>` and ask the user to click the link. |
 | `quota_exceeded` | Tell the user; suggest they delete unused sites or files. |
 | `payload_too_large` | Single file >25 MB. TARS is for sites, not bulk storage. |
 | `site_expired` | Anonymous site past its 24-hour TTL. Publish a new one. |

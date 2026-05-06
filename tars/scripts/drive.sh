@@ -4,9 +4,21 @@
 set -euo pipefail
 
 API="${TARS_API_BASE:-https://api.tars.live}"
+SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 "$(dirname "$0")/_ensure-jq.sh" || exit 1
-JQ="$(dirname "$0")/../bin/jq"
-[ -n "${TARS_API_KEY:-}" ] || { echo "drive.sh: TARS_API_KEY not set — see ~/.claude/skills/tars/SKILL.md" >&2; exit 1; }
+JQ="${CLAUDE_PLUGIN_DATA:-$SKILL_DIR}/bin/jq"
+[ -x "$JQ" ] || JQ="$SKILL_DIR/bin/jq"
+
+# Pull the api key from $TARS_API_KEY, else the credentials file written by
+# auth.sh (plugin-data dir if running as a plugin, else ~/.config/tars/).
+CREDS_DIR="${CLAUDE_PLUGIN_DATA:-${XDG_CONFIG_HOME:-$HOME/.config}/tars}"
+if [ -z "${TARS_API_KEY:-}" ] && [ -r "$CREDS_DIR/credentials" ]; then
+  TARS_API_KEY="$(cat "$CREDS_DIR/credentials")"
+fi
+if [ -z "${TARS_API_KEY:-}" ]; then
+  echo "drive.sh: not signed in. Run 'auth.sh login <email>' or export TARS_API_KEY." >&2
+  exit 1
+fi
 
 AUTH="Authorization: Bearer $TARS_API_KEY"
 
